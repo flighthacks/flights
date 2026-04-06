@@ -59,7 +59,7 @@ export default function PriceChart({
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground text-sm">
-            No price data yet. Prices will appear after scans run.
+            No price data yet. Run a scan to start collecting prices.
           </p>
         </CardContent>
       </Card>

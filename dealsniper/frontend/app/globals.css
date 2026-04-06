@@ -52,6 +52,15 @@
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
   }
+  .maplibregl-popup-content {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+  .maplibregl-popup-tip {
+    display: none !important;
+  }
 }
 
 @layer base {

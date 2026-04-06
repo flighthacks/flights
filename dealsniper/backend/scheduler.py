@@ -14,7 +14,6 @@ scheduler = BackgroundScheduler()
 
 
 def scan_job():
-    """Run a scan cycle."""
     logger.info("Starting scheduled scan...")
     db = SessionLocal()
     try:
@@ -22,16 +21,15 @@ def scan_job():
         logger.info(
             f"Scan complete: {result['routes_scanned']} routes, "
             f"{result['observations_added']} observations, "
-            f"{result['deals_found']} deals"
+            f"{result['deals_found']} deals, {result['errors']} errors"
         )
     except Exception as e:
-        logger.error(f"Scan failed: {e}", exc_info=True)
+        logger.error(f"Scan job failed: {e}", exc_info=True)
     finally:
         db.close()
 
 
 def start_scheduler():
-    """Start the background scheduler with the configured interval."""
     db = SessionLocal()
     try:
         hours = int(get_setting(db, "scan_interval_hours") or "6")
@@ -49,12 +47,8 @@ def start_scheduler():
 
 
 def reschedule(hours: int):
-    """Update the scan interval."""
     try:
-        scheduler.reschedule_job(
-            "flight_scan",
-            trigger=IntervalTrigger(hours=hours),
-        )
+        scheduler.reschedule_job("flight_scan", trigger=IntervalTrigger(hours=hours))
         logger.info(f"Rescheduled scan to every {hours}h")
     except Exception:
         scheduler.add_job(

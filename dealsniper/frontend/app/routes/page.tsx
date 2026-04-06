@@ -35,6 +35,7 @@ export default function RoutesPage() {
 
   const handleDelete = async (id: number) => {
     await api.deleteRoute(id);
+    if (selectedRoute?.id === id) setSelectedRoute(null);
     loadRoutes();
   };
 
@@ -46,7 +47,7 @@ export default function RoutesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Active Routes</CardTitle>
+          <CardTitle>Routes</CardTitle>
         </CardHeader>
         <CardContent>
           {routes.length === 0 ? (
@@ -73,10 +74,10 @@ export default function RoutesPage() {
                     onClick={() => setSelectedRoute(route)}
                   >
                     <TableCell className="font-medium">
-                      {route.origin} → {route.destination}
+                      {route.origin} → {route.destination === "ANYWHERE" ? "Anywhere" : route.destination}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{route.cabin}</Badge>
+                      <Badge variant="secondary">{route.cabin.replace("_", " ")}</Badge>
                     </TableCell>
                     <TableCell>{route.trip_type}</TableCell>
                     <TableCell>
@@ -113,7 +114,7 @@ export default function RoutesPage() {
         </CardContent>
       </Card>
 
-      {selectedRoute && (
+      {selectedRoute && selectedRoute.destination !== "ANYWHERE" && (
         <PriceChart
           origin={selectedRoute.origin}
           destination={selectedRoute.destination}

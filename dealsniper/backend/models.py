@@ -1,4 +1,5 @@
-from datetime import datetime
+"""Pydantic response/request models."""
+
 from typing import Optional
 
 from pydantic import BaseModel
@@ -16,14 +17,14 @@ class PriceObservationOut(BaseModel):
     return_date: Optional[str] = None
     duration_mins: Optional[int] = None
     stops: Optional[int] = None
-    checked_at: datetime
+    checked_at: str
 
     model_config = {"from_attributes": True}
 
 
 class MonitoredRouteCreate(BaseModel):
     origin: str
-    destination: str
+    destination: str = "ANYWHERE"
     cabin: str = "economy"
     trip_type: str = "return"
 
@@ -35,7 +36,7 @@ class MonitoredRouteOut(BaseModel):
     cabin: str
     trip_type: str
     active: bool
-    created_at: datetime
+    created_at: str
 
     model_config = {"from_attributes": True}
 
@@ -53,7 +54,7 @@ class DealOut(BaseModel):
     outbound_date: Optional[str] = None
     return_date: Optional[str] = None
     booking_url: Optional[str] = None
-    found_at: datetime
+    found_at: str
     is_dismissed: bool
 
     model_config = {"from_attributes": True}
@@ -64,7 +65,7 @@ class SettingsOut(BaseModel):
     deal_threshold: float
     scan_interval_hours: int
     lookahead_days: int
-    min_observations_before_alert: int
+    min_observations: int
 
 
 class SettingsUpdate(BaseModel):
@@ -72,7 +73,7 @@ class SettingsUpdate(BaseModel):
     deal_threshold: Optional[float] = None
     scan_interval_hours: Optional[int] = None
     lookahead_days: Optional[int] = None
-    min_observations_before_alert: Optional[int] = None
+    min_observations: Optional[int] = None
 
 
 class StatsOut(BaseModel):
@@ -84,5 +85,16 @@ class StatsOut(BaseModel):
 
 class ScanResult(BaseModel):
     routes_scanned: int
+    observations_added: int
+    deals_found: int
+    errors: int
+
+
+class ScanStatus(BaseModel):
+    running: bool
+    progress: float
+    current_route: str
+    routes_scanned: int
+    total_routes: int
     observations_added: int
     deals_found: int

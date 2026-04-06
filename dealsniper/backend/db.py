@@ -1,15 +1,17 @@
+"""SQLAlchemy models and database session for Deal Sniper."""
+
 import json
 from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
     Column,
-    DateTime,
     Float,
     Integer,
     String,
     Text,
     create_engine,
+    event,
 )
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -19,8 +21,19 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+@event.listens_for(engine, "connect")
+def _set_sqlite_wal(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.close()
+
+
 class Base(DeclarativeBase):
     pass
+
+
+def _utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class PriceObservation(Base):
@@ -29,15 +42,15 @@ class PriceObservation(Base):
     id = Column(Integer, primary_key=True, index=True)
     origin = Column(String, index=True, nullable=False)
     destination = Column(String, index=True, nullable=False)
-    cabin = Column(String, nullable=False)  # economy, premium-economy, business, first
-    trip_type = Column(String, nullable=False)  # oneway, return
+    cabin = Column(String, nullable=False)
+    trip_type = Column(String, nullable=False)
     price = Column(Float, nullable=False)
     airline = Column(String, nullable=True)
     outbound_date = Column(String, nullable=True)
     return_date = Column(String, nullable=True)
     duration_mins = Column(Integer, nullable=True)
     stops = Column(Integer, nullable=True)
-    checked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    checked_at = Column(String, default=_utcnow_iso)
 
 
 class MonitoredRoute(Base):
@@ -45,11 +58,11 @@ class MonitoredRoute(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     origin = Column(String, nullable=False)
-    destination = Column(String, nullable=False)
+    destination = Column(String, nullable=False)  # or "ANYWHERE"
     cabin = Column(String, nullable=False, default="economy")
     trip_type = Column(String, nullable=False, default="return")
     active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(String, default=_utcnow_iso)
 
 
 class Deal(Base):
@@ -67,7 +80,7 @@ class Deal(Base):
     outbound_date = Column(String, nullable=True)
     return_date = Column(String, nullable=True)
     booking_url = Column(String, nullable=True)
-    found_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    found_at = Column(String, default=_utcnow_iso)
     is_dismissed = Column(Boolean, default=False)
 
 
@@ -83,7 +96,7 @@ DEFAULT_SETTINGS = {
     "deal_threshold": "0.80",
     "scan_interval_hours": "6",
     "lookahead_days": "90",
-    "min_observations_before_alert": "10",
+    "min_observations": "10",
 }
 
 
@@ -92,8 +105,7 @@ def init_db():
     db = SessionLocal()
     try:
         for key, value in DEFAULT_SETTINGS.items():
-            existing = db.query(Setting).filter(Setting.key == key).first()
-            if not existing:
+            if not db.query(Setting).filter(Setting.key == key).first():
                 db.add(Setting(key=key, value=value))
         db.commit()
     finally:
@@ -109,16 +121,14 @@ def get_db():
 
 
 def get_setting(db: Session, key: str) -> str:
-    setting = db.query(Setting).filter(Setting.key == key).first()
-    if setting:
-        return setting.value
-    return DEFAULT_SETTINGS.get(key, "")
+    row = db.query(Setting).filter(Setting.key == key).first()
+    return row.value if row else DEFAULT_SETTINGS.get(key, "")
 
 
 def set_setting(db: Session, key: str, value: str):
-    setting = db.query(Setting).filter(Setting.key == key).first()
-    if setting:
-        setting.value = value
+    row = db.query(Setting).filter(Setting.key == key).first()
+    if row:
+        row.value = value
     else:
         db.add(Setting(key=key, value=value))
     db.commit()

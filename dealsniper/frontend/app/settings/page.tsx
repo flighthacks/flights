@@ -106,7 +106,7 @@ export default function SettingsPage() {
             <div>
               <Label>Deal Threshold</Label>
               <p className="text-xs text-muted-foreground mb-1">
-                Alert when price is at or below this % of the 30-day average
+                Alert when price ≤ this fraction of the 30-day average
               </p>
               <div className="flex gap-2 items-center">
                 <Input
@@ -129,7 +129,7 @@ export default function SettingsPage() {
             <div>
               <Label>Scan Interval (hours)</Label>
               <p className="text-xs text-muted-foreground mb-1">
-                How often to run automatic scans
+                How often automatic scans run
               </p>
               <Input
                 type="number"
@@ -169,17 +169,17 @@ export default function SettingsPage() {
             <div>
               <Label>Min Observations Before Alert</Label>
               <p className="text-xs text-muted-foreground mb-1">
-                Minimum data points needed before deals are flagged
+                Minimum data points needed to flag deals
               </p>
               <Input
                 type="number"
                 min="1"
                 max="100"
-                value={settings.min_observations_before_alert}
+                value={settings.min_observations}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    min_observations_before_alert: parseInt(e.target.value),
+                    min_observations: parseInt(e.target.value),
                   })
                 }
                 className="w-24"
@@ -195,7 +195,7 @@ export default function SettingsPage() {
                 deal_threshold: settings.deal_threshold,
                 scan_interval_hours: settings.scan_interval_hours,
                 lookahead_days: settings.lookahead_days,
-                min_observations_before_alert: settings.min_observations_before_alert,
+                min_observations: settings.min_observations,
               })
             }
             disabled={saving}

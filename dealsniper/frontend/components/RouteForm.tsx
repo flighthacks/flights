@@ -22,17 +22,17 @@ export default function RouteForm({ onCreated }: RouteFormProps) {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [cabin, setCabin] = useState("economy");
-  const [tripType, setTripType] = useState("return");
+  const [tripType, setTripType] = useState("oneway");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin || !destination) return;
+    if (!origin) return;
     setLoading(true);
     try {
       await api.createRoute({
         origin: origin.toUpperCase(),
-        destination: destination.toUpperCase(),
+        destination: destination ? destination.toUpperCase() : "ANYWHERE",
         cabin,
         trip_type: tripType,
       });
@@ -57,7 +57,7 @@ export default function RouteForm({ onCreated }: RouteFormProps) {
             <Label htmlFor="origin">Origin</Label>
             <Input
               id="origin"
-              placeholder="SYD"
+              placeholder="PER"
               value={origin}
               onChange={(e) => setOrigin(e.target.value)}
               maxLength={3}
@@ -67,7 +67,7 @@ export default function RouteForm({ onCreated }: RouteFormProps) {
             <Label htmlFor="destination">Destination</Label>
             <Input
               id="destination"
-              placeholder="NRT"
+              placeholder="Leave empty for Anywhere"
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
               maxLength={3}
@@ -81,7 +81,7 @@ export default function RouteForm({ onCreated }: RouteFormProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="economy">Economy</SelectItem>
-                <SelectItem value="premium-economy">Premium Economy</SelectItem>
+                <SelectItem value="premium_economy">Premium Economy</SelectItem>
                 <SelectItem value="business">Business</SelectItem>
                 <SelectItem value="first">First</SelectItem>
               </SelectContent>
@@ -99,7 +99,7 @@ export default function RouteForm({ onCreated }: RouteFormProps) {
               </SelectContent>
             </Select>
           </div>
-          <Button type="submit" disabled={loading || !origin || !destination}>
+          <Button type="submit" disabled={loading || !origin}>
             {loading ? "Adding..." : "Add Route"}
           </Button>
         </form>

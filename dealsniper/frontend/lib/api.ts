@@ -14,7 +14,8 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// Types
+// ── Types ───────────────────────────────────────────────────────────────────
+
 export interface Stats {
   total_observations: number;
   total_deals: number;
@@ -54,7 +55,7 @@ export interface Settings {
   deal_threshold: number;
   scan_interval_hours: number;
   lookahead_days: number;
-  min_observations_before_alert: number;
+  min_observations: number;
 }
 
 export interface PricePoint {
@@ -69,11 +70,59 @@ export interface ScanResult {
   routes_scanned: number;
   observations_added: number;
   deals_found: number;
+  errors: number;
 }
 
-// API functions
+export interface ScanStatus {
+  running: boolean;
+  progress: number;
+  current_route: string;
+  routes_scanned: number;
+  total_routes: number;
+  observations_added: number;
+  deals_found: number;
+}
+
+export interface MapRoute {
+  origin: string;
+  destination: string;
+  origin_lat: number;
+  origin_lng: number;
+  dest_lat: number;
+  dest_lng: number;
+  cabin: string;
+}
+
+export interface MapDeal {
+  id: number;
+  origin: string;
+  destination: string;
+  origin_lat: number;
+  origin_lng: number;
+  dest_lat: number;
+  dest_lng: number;
+  price: number;
+  avg_price: number;
+  discount_pct: number;
+  airline: string | null;
+  cabin: string;
+  outbound_date: string | null;
+  return_date: string | null;
+  booking_url: string | null;
+  found_at: string;
+}
+
+export interface MapAirport {
+  iata: string;
+  lat: number;
+  lng: number;
+}
+
+// ── API ─────────────────────────────────────────────────────────────────────
+
 export const api = {
   getStats: () => fetchApi<Stats>("/api/stats"),
+
   getDeals: (includeDismissed = false) =>
     fetchApi<Deal[]>(`/api/deals?include_dismissed=${includeDismissed}`),
   dismissDeal: (id: number) =>
@@ -85,7 +134,11 @@ export const api = {
     destination: string;
     cabin: string;
     trip_type: string;
-  }) => fetchApi<MonitoredRoute>("/api/routes", { method: "POST", body: JSON.stringify(data) }),
+  }) =>
+    fetchApi<MonitoredRoute>("/api/routes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   deleteRoute: (id: number) =>
     fetchApi<{ status: string }>(`/api/routes/${id}`, { method: "DELETE" }),
   toggleRoute: (id: number) =>
@@ -103,4 +156,11 @@ export const api = {
     fetchApi<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(data) }),
 
   triggerScan: () => fetchApi<ScanResult>("/api/scan", { method: "POST" }),
+  triggerScanAsync: () =>
+    fetchApi<{ status: string }>("/api/scan/async", { method: "POST" }),
+  getScanStatus: () => fetchApi<ScanStatus>("/api/scan/status"),
+
+  getMapRoutes: () => fetchApi<MapRoute[]>("/api/map/routes"),
+  getMapDeals: () => fetchApi<MapDeal[]>("/api/map/deals"),
+  getMapAirports: () => fetchApi<MapAirport[]>("/api/map/airports"),
 };
