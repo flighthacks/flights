@@ -1,3 +1,4 @@
 # Ignore frontend build artifacts and deps
 node_modules/
 .next/
+.env.local
