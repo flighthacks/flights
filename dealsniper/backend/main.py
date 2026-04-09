@@ -1,5 +1,10 @@
 """Deal Sniper – FastAPI backend."""
 
+# Ensure local ratelimit stub is found before any system package so fli imports cleanly
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import json
 import logging
 import threading
