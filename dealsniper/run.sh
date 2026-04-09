@@ -15,15 +15,19 @@ pip install --no-deps flights 2>/dev/null || true
 echo "[2/4] Starting backend on port 8000..."
 uvicorn main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
-sleep 2
 
-# Verify backend
-if curl -s http://localhost:8000/api/health > /dev/null 2>&1; then
-  echo "  Backend running (PID $BACKEND_PID)"
-else
-  echo "  ERROR: Backend failed to start. Check logs above."
-  exit 1
-fi
+# Wait up to 15 seconds for backend to be ready
+for i in $(seq 1 15); do
+  if curl -s http://localhost:8000/api/health > /dev/null 2>&1; then
+    echo "  Backend running (PID $BACKEND_PID)"
+    break
+  fi
+  if [ "$i" -eq 15 ]; then
+    echo "  ERROR: Backend failed to start after 15s. Check logs above."
+    exit 1
+  fi
+  sleep 1
+done
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
 echo ""
