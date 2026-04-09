@@ -135,10 +135,12 @@ def search_dates_for_route(
         return []
 
     if not results:
+        logger.info(f"  No results for {origin_iata}->{dest_iata}")
         return []
 
     observations = []
     for dp in results[:3]:  # top 3 cheapest dates
+        logger.info(f"  {origin_iata}->{dest_iata}: ${dp.price} on {dp.date}")
         observations.append({
             "origin": origin_iata.upper(),
             "destination": dest_iata.upper(),
@@ -314,6 +316,7 @@ def run_scan(db: Session) -> dict:
 
     for i, (origin, dest, cabin, trip_type) in enumerate(search_pairs):
         route_label = f"{origin} → {dest} ({cabin})"
+        logger.info(f"[{i+1}/{total}] Scanning {route_label}...")
         _update_status(
             current_route=route_label,
             routes_scanned=i,
