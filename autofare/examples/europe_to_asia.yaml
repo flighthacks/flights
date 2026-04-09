@@ -1,0 +1,101 @@
+# Autofare: European cities → ICN / HND / KIX
+# Summer 2026 round-trip search
+#
+# Run with:
+#   python -m autofare --config autofare/examples/europe_to_asia.yaml
+#   python -m autofare --config autofare/examples/europe_to_asia.yaml --dry-run
+
+query: "European cities to ICN/HND/KIX, depart July 28-30, return August 24-26"
+
+route:
+  origins:
+    # Major European hubs — add/remove as needed
+    - LHR   # London Heathrow
+    - CDG   # Paris Charles de Gaulle
+    - FRA   # Frankfurt
+    - AMS   # Amsterdam
+    - MUC   # Munich
+    - ZRH   # Zurich
+    - FCO   # Rome
+    - MAD   # Madrid
+    - BCN   # Barcelona
+    - VIE   # Vienna
+    - CPH   # Copenhagen
+    - HEL   # Helsinki
+    - OSL   # Oslo
+    - ARN   # Stockholm
+    - IST   # Istanbul
+    - LIS   # Lisbon
+    - BRU   # Brussels
+    - DUB   # Dublin
+    - MXP   # Milan Malpensa
+    - WAW   # Warsaw
+  destinations:
+    - ICN   # Seoul Incheon
+    - HND   # Tokyo Haneda
+    - KIX   # Osaka Kansai
+  departure_date:
+    target: "2026-07-29"       # middle of July 28-30 window
+    flex_days: 1               # covers July 28, 29, 30
+  return_date:
+    target: "2026-08-25"       # middle of Aug 24-26 window
+    flex_days: 1               # covers Aug 24, 25, 26
+  trip_type: round-trip
+
+passengers:
+  adults: 1
+
+constraints:
+  cabin: business
+  max_stops: 2
+  max_total_duration_hours: 24
+  min_layover_minutes: 60
+  min_intl_layover_minutes: 90
+  max_layover_minutes: 480
+  forbidden_transit_countries: []
+  forbidden_airlines: []
+  max_segments: 4
+
+scoring:
+  price: 1.0
+  total_duration_hours: 15.0   # $15/hr penalty for longer routes
+  stops_penalty: 75.0          # $75 per stop
+  positioning_cost: 1.0        # factor in cost to reach the departure city
+
+strategies:
+  date_shifts: true
+  alternate_airports: true
+  split_tickets: true
+  open_jaw: true               # e.g., fly into ICN, out of KIX
+  hub_routing: true
+  hub_airports:
+    - DOH   # Qatar Airways hub
+    - DXB   # Emirates hub
+    - IST   # Turkish Airlines hub
+    - HEL   # Finnair (great Europe→Asia routing)
+    - SIN   # Singapore Airlines
+    - BKK   # Thai Airways
+    - HKG   # Cathay Pacific
+    - TPE   # EVA Air
+    - AMS   # KLM
+    - CDG   # Air France
+    - FRA   # Lufthansa
+    - ZRH   # Swiss
+    - MUC   # Lufthansa secondary
+  positioning_legs: true
+
+loop:
+  max_iterations: 30
+  proposals_per_iteration: 8
+  no_improvement_stop: 5
+  max_searches: 300            # 20 origins × 3 dests = 60 baseline + 240 optimization
+  timeout_minutes: 60          # generous timeout for large search space
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  api_key_env: ANTHROPIC_API_KEY
+  temperature: 0.8
+
+fetch_mode: common
+currency: USD
