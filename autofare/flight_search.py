@@ -242,9 +242,11 @@ class FlightSearchEngine:
 
             except Exception as e:
                 last_error = e
-                logger.warning(f"  Search attempt {attempt + 1} failed: {e}")
+                err_msg = str(e).split('\n')[0][:80]
+                logger.warning(f"  Search attempt {attempt + 1} failed: {err_msg}")
 
-        logger.error(f"  All {self.max_retries + 1} attempts failed: {last_error}")
+        err_summary = str(last_error).split('\n')[0][:80] if last_error else "unknown"
+        logger.error(f"  All {self.max_retries + 1} attempts failed: {err_summary}")
         return None
 
     def search_batch(self, queries: List[SearchQuery]) -> List[SearchResult]:

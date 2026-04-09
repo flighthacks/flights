@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from .config import AutofareConfig
-from .flight_search import FlightSearchEngine, SearchQuery, SearchResult
+from .flight_search import FlightSearchEngine, FlightOption, SearchQuery, SearchResult
 from .validator import ScoredItinerary, validate_and_score
 from .proposer import ProposalGenerator, Proposal
 
@@ -156,10 +156,11 @@ def run_autofare(config: AutofareConfig) -> AutofareSession:
             break
 
         budget_remaining = config.loop.max_searches - engine.total_searches
+        best_str = f"${session.best.effective_cost:.0f}" if session.best else "N/A"
         logger.info(
             f"\n--- Iteration {iteration + 1} "
             f"(searches: {engine.total_searches}/{config.loop.max_searches}, "
-            f"best: ${session.best.effective_cost:.0f if session.best else 'N/A'}) ---"
+            f"best: {best_str}) ---"
         )
 
         # Generate proposals
@@ -192,6 +193,9 @@ def run_autofare(config: AutofareConfig) -> AutofareSession:
             proposal_valid = True
             proposal_options = []
 
+            is_multi_leg = len(proposal.queries) > 1
+            leg_options: List[List[ScoredItinerary]] = []
+
             for pq in proposal.queries:
                 result = engine.search(pq)
                 iter_results.append(result)
@@ -209,29 +213,46 @@ def run_autofare(config: AutofareConfig) -> AutofareSession:
                 )
 
                 if scored:
-                    proposal_options.extend(scored)
-                    session.all_valid.extend(scored)
+                    leg_options.append(scored)
+                    # Only add individual legs to all_valid for single-leg proposals
+                    if not is_multi_leg:
+                        proposal_options.extend(scored)
+                        session.all_valid.extend(scored)
                 else:
                     proposal_valid = False
                     break
 
             # For multi-leg proposals (hub routing, split tickets),
-            # compute combined cost
-            if proposal_valid and len(proposal.queries) > 1 and proposal_options:
-                combined_cost = sum(
-                    opt.effective_cost for opt in proposal_options
-                )
-                # Create a synthetic scored itinerary for the combined option
-                best_leg = min(proposal_options, key=lambda x: x.score)
+            # compute combined cost using cheapest option from each leg
+            if proposal_valid and is_multi_leg and leg_options:
+                cheapest_per_leg = [min(leg, key=lambda x: x.effective_cost) for leg in leg_options]
+                combined_cost = sum(opt.effective_cost for opt in cheapest_per_leg)
+
+                # Build a descriptive summary for the combined itinerary
+                route_parts = [f"{opt.query.origin}→{opt.query.destination}" for opt in cheapest_per_leg]
+                airlines = [opt.option.airline for opt in cheapest_per_leg if opt.option.airline]
+                combined_airline = " + ".join(airlines) if airlines else ""
+
+                first_leg = cheapest_per_leg[0]
                 combined = ScoredItinerary(
-                    query=proposal.queries[0],  # use first leg as representative
-                    result=best_leg.result,
-                    option=best_leg.option,
+                    query=first_leg.query,
+                    result=first_leg.result,
+                    option=FlightOption(
+                        airline=combined_airline,
+                        departure_time=first_leg.option.departure_time,
+                        arrival_time=cheapest_per_leg[-1].option.arrival_time,
+                        arrival_time_ahead=cheapest_per_leg[-1].option.arrival_time_ahead,
+                        duration=" + ".join(opt.option.duration for opt in cheapest_per_leg if opt.option.duration),
+                        stops=sum(opt.option.stops for opt in cheapest_per_leg if isinstance(opt.option.stops, int)),
+                        price_raw=f"${combined_cost:.0f}",
+                        price_usd=combined_cost,
+                        is_best=False,
+                    ),
                     score=combined_cost,
                     effective_cost=combined_cost,
-                    positioning_cost=best_leg.positioning_cost,
-                    validation=best_leg.validation,
-                    strategy_label=f"{proposal.strategy} (combined {len(proposal.queries)} legs)",
+                    positioning_cost=first_leg.positioning_cost,
+                    validation=first_leg.validation,
+                    strategy_label=f"{proposal.strategy} ({' → '.join(route_parts)})",
                 )
                 session.all_valid.append(combined)
                 proposal_options = [combined]
@@ -239,9 +260,9 @@ def run_autofare(config: AutofareConfig) -> AutofareSession:
             # Check if any option in this proposal beats current best
             for opt in proposal_options:
                 if session.best is None or opt.effective_cost < session.best.effective_cost:
+                    was_str = f"${session.best.effective_cost:.0f}" if session.best else "N/A"
                     logger.info(
-                        f"  ★ NEW BEST: {opt.summary()} "
-                        f"(was: ${session.best.effective_cost:.0f if session.best else 'N/A'})"
+                        f"  ★ NEW BEST: {opt.summary()} (was: {was_str})"
                     )
                     session.best = opt
                     improved = True
