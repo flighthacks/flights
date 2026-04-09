@@ -105,7 +105,11 @@ class SearchWorker:
     ) -> Dict[str, Any]:
         """Synchronous search execution (runs in thread)."""
         import sys
-        sys.path.insert(0, "/home/user/flights")
+        import os
+        # Ensure repo root is on path so autofare/fast_flights are importable
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
 
         from autofare.config import parse_query, load_config_from_string, AutofareConfig
         from autofare.flight_search import FlightSearchEngine, SearchQuery
