@@ -1,0 +1,72 @@
+# Autofare Example: Business class DEL → SFO
+# Run with: python -m autofare --config autofare/examples/del_to_sfo.yaml
+
+query: "business class DEL to SFO this weekend, Indian passport, no Middle East transit"
+
+route:
+  origins: [DEL]
+  destinations: [SFO]
+  departure_date:
+    target: "2026-04-11"
+    flex_days: 2
+  return_date:
+    target: "2026-04-18"
+    flex_days: 2
+  trip_type: round-trip
+
+passengers:
+  adults: 1
+  passport_nationality: IN
+
+constraints:
+  cabin: business
+  max_stops: 2
+  max_total_duration_hours: 30
+  min_layover_minutes: 60
+  min_intl_layover_minutes: 120
+  max_layover_minutes: 480
+  forbidden_transit_countries: [AE, QA, BH, OM, SA, KW, JO, LB, IQ, IR, SY, YE]
+  max_segments: 4
+
+scoring:
+  price: 1.0
+  total_duration_hours: 10.0   # $10/hr penalty
+  stops_penalty: 50.0          # $50 per stop
+  positioning_cost: 1.0
+
+strategies:
+  date_shifts: true
+  alternate_airports: true
+  split_tickets: true
+  open_jaw: true
+  hub_routing: true
+  hub_airports:
+    - CDG   # Paris — Air France hub, competitive J fares
+    - AMS   # Amsterdam — KLM hub
+    - FRA   # Frankfurt — Lufthansa hub
+    - IST   # Istanbul — Turkish Airlines hub
+    - NRT   # Tokyo Narita — JAL/ANA hub
+    - ICN   # Seoul — Korean Air hub
+    - SIN   # Singapore
+    - HKG   # Hong Kong — Cathay hub
+    - BKK   # Bangkok — Thai hub
+    - HEL   # Helsinki — Finnair hub (surprisingly good DEL route)
+    - ZRH   # Zurich — Swiss hub
+    - LHR   # London — BA hub
+  positioning_legs: true
+
+loop:
+  max_iterations: 30
+  proposals_per_iteration: 8
+  no_improvement_stop: 5
+  max_searches: 150
+  timeout_minutes: 20
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  api_key_env: ANTHROPIC_API_KEY
+  temperature: 0.8
+
+fetch_mode: common
+currency: USD
