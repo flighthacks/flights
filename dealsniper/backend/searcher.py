@@ -140,7 +140,9 @@ def search_dates_for_route(
 
     observations = []
     for dp in results[:3]:  # top 3 cheapest dates
-        logger.info(f"  {origin_iata}->{dest_iata}: ${dp.price} on {dp.date}")
+        # dp.date is a tuple of datetime objects, e.g. (datetime(2026, 5, 1),)
+        outbound = dp.date[0].strftime("%Y-%m-%d") if isinstance(dp.date, tuple) else str(dp.date)
+        logger.info(f"  {origin_iata}->{dest_iata}: ${dp.price} on {outbound}")
         observations.append({
             "origin": origin_iata.upper(),
             "destination": dest_iata.upper(),
@@ -148,7 +150,7 @@ def search_dates_for_route(
             "trip_type": "oneway",
             "price": dp.price,
             "airline": None,
-            "outbound_date": dp.date,
+            "outbound_date": outbound,
             "return_date": None,
             "duration_mins": None,
             "stops": None,
