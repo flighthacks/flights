@@ -1,6 +1,23 @@
-google
-playwright
+# Core: fast_flights Google Flights scraper
 primp
-protobuf
+protobuf>=5.27.0
 selectolax
+typing_extensions
 
+# Autofare engine
+pyyaml
+
+# Web backend
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+aiosqlite>=0.19.0
+
+# Optional: billing (required for Stripe payments)
+# stripe>=7.0.0
+
+# Optional: LLM proposals (falls back to built-in strategies without these)
+# anthropic
+# openai
+
+# Optional: browser-based fetch modes
+# playwright

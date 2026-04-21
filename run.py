@@ -9,14 +9,14 @@ Open http://localhost:3000 in your browser.
 """
 
 import os
-import sys
+import socket
 import subprocess
 import signal
-import time
+import sys
 import shutil
+import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.join(ROOT, "web", "backend")
 FRONTEND_DIR = os.path.join(ROOT, "web", "frontend")
 
 os.chdir(ROOT)
@@ -39,42 +39,61 @@ signal.signal(signal.SIGINT, cleanup)
 signal.signal(signal.SIGTERM, cleanup)
 
 
-def check_python_deps():
-    missing = []
-    for mod in ["fastapi", "uvicorn", "aiosqlite", "yaml"]:
-        try:
-            __import__(mod)
-        except ImportError:
-            missing.append(mod)
-    if missing:
-        print(f"[*] Installing Python dependencies...")
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "-q",
-            "fastapi", "uvicorn", "aiosqlite", "pyyaml",
-            "selectolax", "primp", "protobuf", "typing_extensions",
-        ])
+def port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def check_node_deps():
+def install_python_deps():
+    reqs = os.path.join(ROOT, "requirements.txt")
+    try:
+        import fastapi, uvicorn, aiosqlite, yaml  # noqa: F401
+    except ImportError:
+        print("[*] Installing Python dependencies...")
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "-q", "-r", reqs],
+            stdout=subprocess.DEVNULL,
+        )
+
+
+def install_node_deps():
     node_modules = os.path.join(FRONTEND_DIR, "node_modules")
     if not os.path.isdir(node_modules):
         print("[*] Installing frontend dependencies (npm install)...")
-        subprocess.check_call(["npm", "install"], cwd=FRONTEND_DIR)
+        subprocess.check_call(
+            ["npm", "install", "--no-audit", "--no-fund"],
+            cwd=FRONTEND_DIR,
+            stdout=subprocess.DEVNULL,
+        )
 
 
 def main():
     print("=" * 50)
     print("  Autofare — Flight Search Optimizer")
     print("=" * 50)
+    print()
 
-    # Check deps
-    check_python_deps()
+    # ── Check ports ──
+    if port_in_use(8000):
+        print("[!] ERROR: Port 8000 already in use. Kill the process and retry.")
+        sys.exit(1)
 
-    has_node = shutil.which("node") and shutil.which("npm")
+    has_node = bool(shutil.which("node") and shutil.which("npm"))
+    if has_node and port_in_use(3000):
+        print("[!] ERROR: Port 3000 already in use. Kill the process and retry.")
+        sys.exit(1)
+
+    # ── Install deps ──
+    install_python_deps()
     if has_node:
-        check_node_deps()
+        install_node_deps()
 
-    # Start backend
+    # ── Check optional env vars ──
+    if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
+        print("[i] No LLM API key set — searches will use built-in strategies only.")
+        print("    Set ANTHROPIC_API_KEY for AI-powered route proposals.\n")
+
+    # ── Start backend ──
     print("[*] Starting backend on http://localhost:8000 ...")
     env = os.environ.copy()
     env["PYTHONPATH"] = ROOT + os.pathsep + env.get("PYTHONPATH", "")
@@ -87,7 +106,7 @@ def main():
     procs.append(backend)
     time.sleep(2)
 
-    # Start frontend
+    # ── Start frontend ──
     if has_node:
         print("[*] Starting frontend on http://localhost:3000 ...")
         frontend = subprocess.Popen(
@@ -97,7 +116,7 @@ def main():
         procs.append(frontend)
     else:
         print("[!] Node.js not found — skipping frontend.")
-        print("    Install Node.js and run: cd web/frontend && npm install && npm run dev")
+        print("    Install Node.js (https://nodejs.org) then re-run.")
 
     print()
     print("=" * 50)
@@ -109,12 +128,13 @@ def main():
     print("  Press Ctrl+C to stop.")
     print("=" * 50)
 
-    # Wait for processes
+    # ── Wait ──
     try:
         while True:
             for p in procs:
-                if p.poll() is not None:
-                    print(f"[!] Process exited with code {p.returncode}")
+                ret = p.poll()
+                if ret is not None:
+                    print(f"\n[!] A server exited (code {ret}). Shutting down.")
                     cleanup()
             time.sleep(1)
     except KeyboardInterrupt:

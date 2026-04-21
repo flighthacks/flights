@@ -279,9 +279,12 @@ async def get_search_result(
 @app.get("/api/search/{job_id}/stream")
 async def stream_search_progress(
     job_id: str,
-    user: AuthUser = Depends(get_current_user),
 ):
-    """Server-Sent Events endpoint for real-time search progress."""
+    """Server-Sent Events endpoint for real-time search progress.
+
+    No bearer auth — EventSource can't send headers. The job UUID itself
+    acts as an unguessable capability token.
+    """
 
     async def event_stream():
         last_update = 0

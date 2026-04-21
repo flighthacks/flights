@@ -36,7 +36,8 @@ local = [
 
 [tool.setuptools]
 packages = [
-    "fast_flights"
+    "fast_flights",
+    "autofare"
 ]
 
 [tool.pyright]
