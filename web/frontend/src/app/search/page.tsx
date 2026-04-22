@@ -1,22 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { createSearch, getSearchResult, streamSearchProgress } from "@/lib/api";
-
-interface SearchProgress {
-  status: string;
-  message?: string;
-  phase?: string;
-  searches_done?: number;
-  searches_total?: number;
-  best_price?: number;
-  baseline_price?: number;
-  strategy?: string;
-  new_best?: boolean;
-  iteration?: number;
-  final?: boolean;
-}
+import { createSearch, getSearchResult } from "@/lib/api";
 
 interface FlightResult {
   origin: string;
@@ -34,6 +20,7 @@ interface FlightResult {
 interface SearchResultData {
   job_id: string;
   status: string;
+  query: string;
   baseline_price: number | null;
   best_price: number | null;
   savings: number | null;
@@ -42,6 +29,7 @@ interface SearchResultData {
   best_airline: string | null;
   total_searches: number;
   top_results: FlightResult[];
+  progress: any;
 }
 
 export default function SearchPage() {
@@ -52,47 +40,50 @@ export default function SearchPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [jobId, setJobId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<SearchProgress | null>(null);
   const [result, setResult] = useState<SearchResultData | null>(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Poll for final results when search completes
-  const fetchResult = useCallback(async (id: string) => {
-    try {
-      const data = await getSearchResult(id);
-      setResult(data);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  }, []);
-
-  // Start SSE stream when job starts
+  // Poll for results when we have a job
   useEffect(() => {
     if (!jobId) return;
 
-    const close = streamSearchProgress(
-      jobId,
-      (data: SearchProgress) => {
-        setProgress(data);
-      },
-      () => {
-        // SSE done — fetch final result
-        fetchResult(jobId);
-      }
-    );
+    let active = true;
 
-    return close;
-  }, [jobId, fetchResult]);
+    async function poll() {
+      if (!active || !jobId) return;
+      try {
+        const data = await getSearchResult(jobId);
+        if (!active) return;
+        setResult(data);
+        if (data.status === "completed" || data.status === "failed") {
+          return; // stop polling
+        }
+      } catch {}
+      // Keep polling
+      if (active) {
+        pollRef.current = setTimeout(poll, 2000);
+      }
+    }
+
+    // Start polling immediately
+    poll();
+
+    return () => {
+      active = false;
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
+  }, [jobId]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim()) return;
 
     setError("");
-    setLoading(true);
-    setProgress(null);
+    setSubmitting(true);
     setResult(null);
+    setJobId(null);
 
     try {
       const job = await createSearch({
@@ -105,14 +96,18 @@ export default function SearchPage() {
     } catch (err: any) {
       setError(err.message || "Failed to start search");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
-  const isSearching = progress && !progress.final && progress.status !== "completed" && progress.status !== "failed";
-  const pct = progress?.searches_done && progress?.searches_total
-    ? Math.round((progress.searches_done / progress.searches_total) * 100)
-    : 0;
+  const isSearching = result?.status === "running" || (jobId && !result);
+  const isComplete = result?.status === "completed";
+  const isFailed = result?.status === "failed";
+  const progress = result?.progress;
+  const pct =
+    progress?.searches_done && progress?.searches_total
+      ? Math.round((progress.searches_done / progress.searches_total) * 100)
+      : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -203,7 +198,7 @@ export default function SearchPage() {
 
           <button
             type="submit"
-            disabled={loading || !!isSearching}
+            disabled={submitting || !!isSearching}
             className="w-full bg-brand-600 text-white py-3 rounded-lg text-lg font-medium hover:bg-brand-700 transition disabled:opacity-50"
           >
             {isSearching ? "Searching..." : "Find Cheapest Flights"}
@@ -217,52 +212,43 @@ export default function SearchPage() {
         </form>
 
         {/* Live progress */}
-        {isSearching && progress && (
+        {isSearching && (
           <div className="bg-white rounded-xl shadow border p-6 mb-8">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-brand-500 animate-pulse-glow" />
-                <span className="font-medium">
-                  {progress.phase === "baseline" ? "Searching baseline routes..." : "Optimizing..."}
-                </span>
+                <span className="font-medium">Searching flights...</span>
               </div>
-              <span className="text-sm text-gray-500">
-                {progress.searches_done} / {progress.searches_total} searches
-              </span>
-            </div>
-
-            {/* Progress bar */}
-            <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-              <div
-                className="bg-brand-500 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-
-            <div className="text-sm text-gray-600">{progress.message}</div>
-
-            {progress.best_price && (
-              <div className="mt-3 flex items-center gap-4">
-                {progress.baseline_price && (
-                  <span className="text-gray-400 line-through">
-                    ${progress.baseline_price.toLocaleString()}
-                  </span>
-                )}
-                <span className="text-xl font-bold text-green-600">
-                  ${progress.best_price.toLocaleString()}
+              {progress && (
+                <span className="text-sm text-gray-500">
+                  {progress.searches_done || 0} / {progress.searches_total || "?"} searches
                 </span>
-                {progress.new_best && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                    New best!
-                  </span>
-                )}
+              )}
+            </div>
+
+            {pct > 0 && (
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                <div
+                  className="bg-brand-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            )}
+
+            {progress?.message && (
+              <div className="text-sm text-gray-600">{progress.message}</div>
+            )}
+
+            {progress?.best_price && (
+              <div className="mt-3 text-xl font-bold text-green-600">
+                Best so far: ${progress.best_price.toLocaleString()}
               </div>
             )}
           </div>
         )}
 
         {/* Results */}
-        {result && result.status === "completed" && (
+        {isComplete && result && (
           <div>
             {/* Summary card */}
             <div className="bg-white rounded-xl shadow border p-6 mb-6">
@@ -303,13 +289,12 @@ export default function SearchPage() {
                   <div className="text-3xl font-bold">
                     ${result.best_price?.toLocaleString() || "N/A"}
                   </div>
-                </div>
-              )}
-
-              {result.best_route && (
-                <div className="mt-4 text-gray-600">
-                  Best route: <strong>{result.best_route}</strong>
-                  {result.best_airline && ` on ${result.best_airline}`}
+                  {result.best_route && (
+                    <div className="text-gray-600 mt-1">
+                      {result.best_route}
+                      {result.best_airline && ` on ${result.best_airline}`}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -318,7 +303,7 @@ export default function SearchPage() {
             {result.top_results.length > 0 && (
               <div className="bg-white rounded-xl shadow border overflow-hidden">
                 <div className="px-6 py-4 border-b">
-                  <h3 className="font-semibold">All results</h3>
+                  <h3 className="font-semibold">All results ({result.top_results.length})</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -365,6 +350,12 @@ export default function SearchPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {isFailed && (
+          <div className="bg-red-50 text-red-700 p-6 rounded-xl border border-red-200">
+            Search failed. Please try again.
           </div>
         )}
       </div>
